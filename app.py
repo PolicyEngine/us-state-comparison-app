@@ -1,5 +1,6 @@
 import streamlit as st
 from policyengine_us import Simulation
+import pkg_resources
 import pandas as pd
 import plotly.express as px
 
@@ -134,8 +135,17 @@ def calculate_net_incomes():
     ]
 
     net_incomes = {}
-    for state in states:
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for i, state in enumerate(states):
         net_incomes[state] = calculate_net_income(state)
+        progress = (i + 1) / len(states)
+        progress_bar.progress(progress)
+        status_text.text(f"Calculating net income for state: {state}")
+
+    progress_bar.empty()
+    status_text.empty()
 
     return net_incomes
 
@@ -176,8 +186,17 @@ fig = px.choropleth(
 
 st.plotly_chart(fig)
 
+policyengine_version = pkg_resources.get_distribution(
+    "policyengine_us"
+).version
+
+
 st.markdown(
     """
-Data and calculations provided by [PolicyEngine](https://policyengine.org/) (`policyengine_us` v0.713.2)
-"""
+Data and calculations provided by [PolicyEngine](https://policyengine.org/).
+
+Version: {}
+""".format(
+        policyengine_version
+    )
 )
