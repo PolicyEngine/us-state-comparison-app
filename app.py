@@ -178,6 +178,6 @@ st.plotly_chart(fig)
 
 st.markdown(
     """
-Data and calculations provided by [PolicyEngine](https://policyengine.org/).
+Data and calculations provided by [PolicyEngine](https://policyengine.org/) (`policyengine_us` v0.713.2)
 """
 )
