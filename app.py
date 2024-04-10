@@ -1,13 +1,13 @@
 import streamlit as st
 from policyengine_us import Simulation
-import pkg_resources
 import pandas as pd
 import plotly.express as px
+import pkg_resources
 
 
 @st.cache_data
-def calculate_net_incomes():
-    def calculate_net_income(state):
+def calculate_household_data():
+    def calculate_data(state):
         situation = {
             "people": {
                 "you": {
@@ -78,8 +78,23 @@ def calculate_net_incomes():
         }
 
         simulation = Simulation(situation=situation)
-        output = simulation.calculate("household_net_income", 2024)
-        return float(output)
+        net_income = float(simulation.calculate("household_net_income", 2024))
+        benefits = float(simulation.calculate("household_benefits", 2024))
+        refundable_credits = float(
+            simulation.calculate("household_refundable_tax_credits", 2024)
+        )
+        tax_before_credits = float(
+            simulation.calculate(
+                "household_tax_before_refundable_credits", 2024
+            )
+        )
+
+        return {
+            "net_income": net_income,
+            "benefits": benefits,
+            "refundable_credits": refundable_credits,
+            "tax_before_credits": tax_before_credits,
+        }
 
     states = [
         "AL",
@@ -134,54 +149,76 @@ def calculate_net_incomes():
         "WY",
     ]
 
-    net_incomes = {}
+    household_data = {}
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     for i, state in enumerate(states):
-        net_incomes[state] = calculate_net_income(state)
+        household_data[state] = calculate_data(state)
         progress = (i + 1) / len(states)
         progress_bar.progress(progress)
-        status_text.text(f"Calculating net income for state: {state}")
+        status_text.text(f"Calculating data for state: {state}")
 
     progress_bar.empty()
     status_text.empty()
 
-    return net_incomes
+    return household_data
 
 
-st.title("Household Net Income by State")
+st.title("Household Financial Data by State (PRELIMINARY)")
 
 st.markdown(
     """
 The household consists of:
-- Two married adults, both age 40 with \$25,000 in wages
+- A married couple, each age 40 with \$25,000 wages
 - Two children, age 2 and 4
 - Monthly expenses of \$2,000 for rent and \$500 for childcare
 """
 )
 
-net_incomes = calculate_net_incomes()
+household_data = calculate_household_data()
 
-states = list(net_incomes.keys())
-selected_state = st.selectbox("Select a state for comparison:", states)
+states = list(household_data.keys())
+selected_state = st.selectbox(
+    "Select a state for comparison:", states, index=states.index("VA")
+)
 
-df = pd.DataFrame(list(net_incomes.items()), columns=["State", "Net Income"])
+df = pd.DataFrame(household_data).T.reset_index()
+df.columns = [
+    "State",
+    "Net Income",
+    "Benefits",
+    "Refundable Credits",
+    "Tax Before Credits",
+]
 
-reference_income = net_incomes[selected_state]
-df["Difference"] = df["Net Income"] - reference_income
+reference_data = household_data[selected_state]
+df["Net Income Difference"] = df["Net Income"] - reference_data["net_income"]
+df["Benefits Difference"] = df["Benefits"] - reference_data["benefits"]
+df["Refundable Credits Difference"] = (
+    df["Refundable Credits"] - reference_data["refundable_credits"]
+)
+df["Tax Before Credits Difference"] = (
+    df["Tax Before Credits"] - reference_data["tax_before_credits"]
+)
 
 fig = px.choropleth(
     df,
     locations="State",
     locationmode="USA-states",
-    color="Difference",
+    color="Net Income Difference",
     scope="usa",
     color_continuous_scale=px.colors.diverging.RdBu,
     color_continuous_midpoint=0,
-    labels={"Difference": "Difference ($)", "Net Income": "Net Income ($)"},
+    labels={"Net Income Difference": "Net Income Difference ($)"},
     title=f"Household Net Income Difference Compared to {selected_state}",
-    hover_data={"State": True, "Difference": ":.2f", "Net Income": ":.2f"},
+    hover_data={
+        "State": True,
+        "Net Income Difference": ":.2f",
+        "Benefits Difference": ":.2f",
+        "Refundable Credits Difference": ":.2f",
+        "Tax Before Credits Difference": ":.2f",
+    },
 )
 
 st.plotly_chart(fig)
@@ -190,12 +227,11 @@ policyengine_version = pkg_resources.get_distribution(
     "policyengine_us"
 ).version
 
-
 st.markdown(
     """
 Data and calculations provided by [PolicyEngine](https://policyengine.org/).
 
-Version: {}
+`policyengine-us` v{}
 """.format(
         policyengine_version
     )
